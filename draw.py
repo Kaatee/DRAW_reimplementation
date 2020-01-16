@@ -9,15 +9,15 @@ database = input_data.read_data_sets('.\content\data', one_hot=True)
 tf.reset_default_graph()
 # Parameters for neural network
 LEARNING_PARAM = 0.001
-NUMBER_OF_ITERATIONS = 3000
+NUMBER_OF_ITERATIONS = 4000
 BATCH_SIZE = 32
 image_dimension = 784  # image size is 28 x 28
 NUMBER_OF_NEURONS = 256
-LATENT_VARIABLE_DIMENSION = 10 #5
+LATENT_VARIABLE_DIMENSION = 10 #5 #10
 # with attention or without
-WITH_ATTENTION = True
+WITH_ATTENTION = False
 
-T_RANGE = 10 #3
+T_RANGE = 10 #3 10
 SHARE_PARAMETERS = False
 
 IMAGE_SIZE = 28
@@ -172,7 +172,14 @@ def show_and_save_results(image, type):
     plt.show()
 
     # save results
-    img_type = "TRAINING_" if type == 'TRAIN' else "TESTING_"
+    if type == 'TRAIN':
+        img_type = "TRAINING_"
+    else:
+        if type == 'RECONSTRUCTING_PROCESS':
+            img_type = 'RECONSTRUCTING_PROCESS_'
+        else:
+            img_type = "TESTING_"
+    #img_type = "TRAINING_" if type == 'TRAIN' else "TESTING_"
     prefix = "with_attention" if WITH_ATTENTION else "without_attention"
     os.makedirs("results", exist_ok=True)
     filename = ".\\results\\" + img_type + prefix + "_" + str(NUMBER_OF_ITERATIONS) + "_epochs_" + str(datetime.now().strftime("%d-%m-%Y___%H-%M-%S")) + ".png"
@@ -232,10 +239,10 @@ show_and_save_results(empty_image, IMG_TYPE_TRAINING)
 
 
 #  --- TESTING ----
-##noise_X = tf.placeholder(tf.float32, shape=[None, LATENT_VARIABLE_DIMENSION])
+noise_X = tf.placeholder(tf.float32, shape=[None, LATENT_VARIABLE_DIMENSION])
 dec_state = lstm_dec.zero_state(BATCH_SIZE, tf.float32)
 c_test = [0] * T_RANGE
-noise_X = tf.random_normal((BATCH_SIZE, LATENT_VARIABLE_DIMENSION), mean=0, stddev=1)
+#noise_X = tf.random_normal((BATCH_SIZE, LATENT_VARIABLE_DIMENSION), mean=0, stddev=1)
 for t in range(T_RANGE):
     if t == 0:
         c_prev = tf.zeros((BATCH_SIZE, image_dimension))
@@ -245,12 +252,14 @@ for t in range(T_RANGE):
     c_test[t] = c_prev + write(h_t_dec)
     h_t_dec_prev = h_t_dec
     SHARE_PARAMETERS = True
-    noise_X = tf.random_normal((BATCH_SIZE, LATENT_VARIABLE_DIMENSION), mean=0, stddev=1)
+    #noise_X = tf.random_normal((BATCH_SIZE, LATENT_VARIABLE_DIMENSION), mean=0, stddev=1)
 
 
 # Showing output
 n = 10
+result = [0] * T_RANGE
 empty_image = np.empty((IMAGE_SIZE * n, IMAGE_SIZE * n))
+c_image = np.empty((IMAGE_SIZE, IMAGE_SIZE * T_RANGE))
 
 for i in range(n):
     for j in range(n):
@@ -258,12 +267,25 @@ for i in range(n):
         #noise = tf.random_normal((batch_size, latent_variable_dimension), mean=0, stddev=1)
         x_batch = np.random.normal(0, 1, size=[BATCH_SIZE, image_dimension])
 
-        cs = sess.run(c_test, feed_dict={images: x_batch})
+        cs = sess.run(c_test, feed_dict={images: x_batch, noise_X: noise})
         result = 1.000 / (1.000 + np.exp(-np.array(cs)))
         empty_image[(n - i - 1) * IMAGE_SIZE: (n - i) * IMAGE_SIZE, j * IMAGE_SIZE: (j + 1) * IMAGE_SIZE] = result[-1][0].reshape(IMAGE_SIZE, IMAGE_SIZE)
 
+n = T_RANGE
+j = 0
+for i in range(T_RANGE):
+    c_image[j * IMAGE_SIZE : (j + 1) * IMAGE_SIZE, (n - i - 1) * IMAGE_SIZE : (n - i) * IMAGE_SIZE] \
+        = result[i][0].reshape(IMAGE_SIZE, IMAGE_SIZE)
 
+# plt.figure(figsize=(8, 10))
+# plt.imshow(np.fliplr(c_image), origin="upper", cmap="gray")
+# plt.grid(False)
+# plt.show()
+
+show_and_save_results(np.fliplr(c_image), "RECONSTRUCTING_PROCESS")
 show_and_save_results(empty_image, IMG_TYPE_TESTING)
+
+
 
 # TENSORBOARD SECTION
 #writer = tf.summary.FileWriter('./graph_example', sess.graph)
